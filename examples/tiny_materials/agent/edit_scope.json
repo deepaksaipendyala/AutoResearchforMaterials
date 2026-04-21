@@ -1,0 +1,46 @@
+{
+  "schema_version": "materials-autoresearch/v0.2",
+  "purpose": "Defines which project files an autonomous agent may change during experiments.",
+  "agent_may_edit_without_asking": [
+    {
+      "path": "specs/model_config.json",
+      "why": "Choose tabular_mlp or tabm and tune model size, training time, learning rate, feature roles, and similar experiment settings."
+    },
+    {
+      "path": "agent/experiment_plan.md",
+      "why": "Keep a short plan for the next experiment."
+    },
+    {
+      "path": "agent/experiment_log.tsv",
+      "why": "Record every completed, failed, or skipped run."
+    }
+  ],
+  "agent_may_edit_with_researcher_approval": [
+    {
+      "path": "specs/data_dictionary.csv",
+      "why": "Changing column roles can add or remove scientific information from the model."
+    },
+    {
+      "path": "specs/project.json",
+      "why": "This file defines the target, metric, split, and scientific contract."
+    },
+    {
+      "path": "train_materials.py",
+      "why": "Shared trainer changes affect all projects, not just this one."
+    }
+  ],
+  "agent_must_not_edit": [
+    "data/raw/*",
+    "runs/*/metrics.json",
+    "runs/*/validation_predictions.csv",
+    "runs/*/test_predictions.csv"
+  ],
+  "ask_before": [
+    "changing the target column",
+    "changing the task type",
+    "changing the primary metric",
+    "changing the train/validation/test split",
+    "dropping rows for scientific rather than technical reasons",
+    "using a target-derived or leakage-prone column as a feature"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "trainer": "tabular_mlp",
+  "model": {
+    "hidden_dim": 128,
+    "dropout": 0.05
+  },
+  "tabm": {
+    "arch_type": "tabm",
+    "k": 32,
+    "n_blocks": 3,
+    "d_block": 256,
+    "dropout": 0.1
+  },
+  "training": {
+    "epochs": 200,
+    "patience": 30,
+    "batch_size": 64,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "seed": 42
+  },
+  "feature_selection": {
+    "numeric_roles": [
+      "feature",
+      "processing_feature"
+    ],
+    "categorical_roles": [
+      "categorical_feature",
+      "composition"
+    ],
+    "excluded_roles": [
+      "id",
+      "target",
+      "metadata",
+      "structure_ref",
+      "group"
+    ]
+  }
+}

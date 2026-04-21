@@ -1,0 +1,10 @@
+column,role,data_type,units,required,description,missing_values,example
+material_id,id,object,,yes,"Unique material, sample, or calculation identifier.",0,mat-001
+formula,composition,object,,no,Composition or formula input. The baseline one-hot encodes it until composition featurizers are added.,0,Si
+chemical_system,group,object,,no,Family/batch/source column used to make a harder evaluation split.,0,Si
+temperature_K,processing_feature,int64,,no,"Processing, synthesis, or measurement condition used as an input.",0,300
+density_g_cm3,feature,float64,TODO,no,Numeric input used by the first baseline model.,0,2.33
+mean_atomic_number,feature,float64,TODO,no,Numeric input used by the first baseline model.,0,14.0
+mean_electronegativity,feature,float64,TODO,no,Numeric input used by the first baseline model.,0,1.9
+band_gap_eV,target,float64,TODO,yes,Property the model should predict.,0,1.12
+stable,categorical_feature,object,,no,Text/category input. The baseline one-hot encodes it.,0,yes

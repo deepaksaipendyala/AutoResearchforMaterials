@@ -1,91 +1,391 @@
-# autoresearch
+# Materials Autoresearch
 
-![teaser](progress.png)
+**AI-assisted machine learning for materials science.**
+Designed for PhD students, postdocs, and research groups who know the science and want results — not an ML engineering project.
 
-*One day, frontier AI research used to be done by meat computers in between eating, sleeping, having other fun, and synchronizing once in a while using sound wave interconnect in the ritual of "group meeting". That era is long gone. Research is now entirely the domain of autonomous swarms of AI agents running across compute cluster megastructures in the skies. The agents claim that we are now in the 10,205th generation of the code base, in any case no one could tell if that's right or wrong as the "code" is now a self-modifying binary that has grown beyond human comprehension. This repo is the story of how it all began. -@karpathy, March 2026*.
+The core workflow is:
 
-The idea: give an AI agent a small but real LLM training setup and let it experiment autonomously overnight. It modifies the code, trains for 5 minutes, checks if the result improved, keeps or discards, and repeats. You wake up in the morning to a log of experiments and (hopefully) a better model. The training code here is a simplified single-GPU implementation of [nanochat](https://github.com/karpathy/nanochat). The core idea is that you're not touching any of the Python files like you normally would as a researcher. Instead, you are programming the `program.md` Markdown files that provide context to the AI agents and set up your autonomous research org. The default `program.md` in this repo is intentionally kept as a bare bones baseline, though it's obvious how one would iterate on it over time to find the "research org code" that achieves the fastest research progress, how you'd add more agents to the mix, etc. A bit more context on this project is here in this [tweet](https://x.com/karpathy/status/2029701092347630069) and [this tweet](https://x.com/karpathy/status/2031135152349524125).
+1. Put your dataset (CSV, TSV, or Parquet) in a standard project folder.
+2. Answer a few plain-language questions about your data (target property, units, split strategy).
+3. Train a first baseline model to see where you stand.
+4. Let an AI agent propose and test model improvements overnight — while you sleep.
 
-## How it works
+The main research target is **TabM** — Yandex Research's 2024 state-of-the-art tabular deep learning model — applied to materials science datasets for the first time, using the **DataScribe** benchmark suite from Vahid Attari et al. (2025).
 
-The repo is deliberately kept small and only really has three files that matter:
+---
 
-- **`prepare.py`** — fixed constants, one-time data prep (downloads training data, trains a BPE tokenizer), and runtime utilities (dataloader, evaluation). Not modified.
-- **`train.py`** — the single file the agent edits. Contains the full GPT model, optimizer (Muon + AdamW), and training loop. Everything is fair game: architecture, hyperparameters, optimizer, batch size, etc. **This file is edited and iterated on by the agent**.
-- **`program.md`** — baseline instructions for one agent. Point your agent here and let it go. **This file is edited and iterated on by the human**.
+## Who this is for
 
-By design, training runs for a **fixed 5-minute time budget** (wall clock, excluding startup/compilation), regardless of the details of your compute. The metric is **val_bpb** (validation bits per byte) — lower is better, and vocab-size-independent so architectural changes are fairly compared.
+- You have a materials dataset as a spreadsheet (CSV/Excel/TSV) or Parquet file.
+- You want to train a serious machine learning model on it without writing PyTorch code.
+- You want to know whether the model is actually better overnight, not after a week of manual tuning.
+- You work in materials science, not software engineering.
 
-If you are new to neural networks, this ["Dummy's Guide"](https://x.com/hooeem/status/2030720614752039185) looks pretty good for a lot more context.
+---
 
-## Quick start
+## What you need before starting
 
-**Requirements:** A single NVIDIA GPU (tested on H100), Python 3.10+, [uv](https://docs.astral.sh/uv/).
+- Python 3.10 or newer
+- [`uv`](https://docs.astral.sh/uv/) (a fast Python package manager — install once with `curl -LsSf https://astral.sh/uv/install.sh | sh`)
+- An Anthropic API key for the overnight agent ([get one here](https://console.anthropic.com/))
+- Your dataset as a CSV or similar file
+
+No GPU is required for small datasets (< 10,000 rows), but a GPU makes training 10–50× faster.
+
+---
+
+## Install
 
 ```bash
-
-# 1. Install uv project manager (if you don't already have it)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. Install dependencies
+git clone https://github.com/your-org/autoresearch.git
+cd autoresearch
 uv sync
-
-# 3. Download data and train tokenizer (one-time, ~2 min)
-uv run prepare.py
-
-# 4. Manually run a single training experiment (~5 min)
-uv run train.py
 ```
 
-If the above commands all work ok, your setup is working and you can go into autonomous research mode.
+That installs everything, including PyTorch, TabM, and the Anthropic SDK.
 
-## Running the agent
+---
 
-Simply spin up your Claude/Codex or whatever you want in this repo (and disable all permissions), then you can prompt something like:
+## The five-step workflow
 
-```
-Hi have a look at program.md and let's kick off a new experiment! let's do the setup first.
-```
+### Step 1 — Create a project folder from your data
 
-The `program.md` file is essentially a super lightweight "skill".
-
-## Project structure
-
-```
-prepare.py      — constants, data prep + runtime utilities (do not modify)
-train.py        — model, optimizer, training loop (agent modifies this)
-program.md      — agent instructions
-pyproject.toml  — dependencies
+```bash
+uv run materials-project init projects/my_project --data path/to/my_data.csv --target band_gap
 ```
 
-## Design choices
+This will ask you a few questions:
 
-- **Single file to modify.** The agent only touches `train.py`. This keeps the scope manageable and diffs reviewable.
-- **Fixed time budget.** Training always runs for exactly 5 minutes, regardless of your specific platform. This means you can expect approx 12 experiments/hour and approx 100 experiments while you sleep. There are two upsides of this design decision. First, this makes experiments directly comparable regardless of what the agent changes (model size, batch size, architecture, etc). Second, this means that autoresearch will find the most optimal model for your platform in that time budget. The downside is that your runs (and results) become not comparable to other people running on other compute platforms.
-- **Self-contained.** No external dependencies beyond PyTorch and a few small packages. No distributed training, no complex configs. One GPU, one file, one metric.
+- **What is the target property?** The column you want to predict (e.g., `band_gap`, `formation_energy`, `yield_strength`).
+- **Is it a number or a category?** Numbers → regression. Labels like "stable/unstable" → classification.
+- **Which metric decides "better"?** MAE is recommended for physical properties (it has units you can interpret). Balanced accuracy for classification.
+- **Random split or grouped by chemistry?** Grouping by chemical system gives a harder, more realistic test.
+- **Which columns are inputs?** The tool auto-detects; you confirm or correct.
 
-## Platform support
+**Why does the tool ask these questions?**
+These decisions define the entire experiment. The target and metric cannot change once the project is set up (the agent will ask your permission first if it thinks they should change). This protects you from accidentally comparing apples and oranges across runs.
 
-This code currently requires that you have a single NVIDIA GPU. In principle it is quite possible to support CPU, MPS and other platforms but this would also bloat the code. I'm not 100% sure that I want to take this on personally right now. People can reference (or have their agents reference) the full/parent nanochat repository that has wider platform support and shows the various solutions (e.g. a Flash Attention 3 kernels fallback implementation, generic device support, autodetection, etc.), feel free to create forks or discussions for other platforms and I'm happy to link to them here in the README in some new notable forks section or etc.
+### Step 2 — Validate the project
 
-Seeing as there seems to be a lot of interest in tinkering with autoresearch on much smaller compute platforms than an H100, a few extra words. If you're going to try running autoresearch on smaller computers (Macbooks etc.), I'd recommend one of the forks below. On top of this, here are some recommendations for how to tune the defaults for much smaller models for aspiring forks:
+```bash
+uv run materials-project validate projects/my_project
+```
 
-1. To get half-decent results I'd use a dataset with a lot less entropy, e.g. this [TinyStories dataset](https://huggingface.co/datasets/karpathy/tinystories-gpt4-clean). These are GPT-4 generated short stories. Because the data is a lot narrower in scope, you will see reasonable results with a lot smaller models (if you try to sample from them after training).
-2. You might experiment with decreasing `vocab_size`, e.g. from 8192 down to 4096, 2048, 1024, or even - simply byte-level tokenizer with 256 possibly bytes after utf-8 encoding.
-3. In `prepare.py`, you'll want to lower `MAX_SEQ_LEN` a lot, depending on the computer even down to 256 etc. As you lower `MAX_SEQ_LEN`, you may want to experiment with increasing `DEVICE_BATCH_SIZE` in `train.py` slightly to compensate. The number of tokens per fwd/bwd pass is the product of these two.
-4. Also in `prepare.py`, you'll want to decrease `EVAL_TOKENS` so that your validation loss is evaluated on a lot less data.
-5. In `train.py`, the primary single knob that controls model complexity is the `DEPTH` (default 8, here). A lot of variables are just functions of this, so e.g. lower it down to e.g. 4.
-6. You'll want to most likely use `WINDOW_PATTERN` of just "L", because "SSSL" uses alternating banded attention pattern that may be very inefficient for you. Try it.
-7. You'll want to lower `TOTAL_BATCH_SIZE` a lot, but keep it powers of 2, e.g. down to `2**14` (~16K) or so even, hard to tell.
+This checks that the data file is readable, the target column exists, the split will produce non-empty train/validation/test sets, and all required files are present.
 
-I think these would be the reasonable hyperparameters to play with. Ask your favorite coding agent for help and copy paste them this guide, as well as the full source code.
+**Why validate before training?**
+Training on a bad split or missing column will silently produce meaningless numbers. Validate first.
 
-## Notable forks
+### Step 3 — Train a first baseline
 
-- [miolini/autoresearch-macos](https://github.com/miolini/autoresearch-macos) (MacOS)
-- [trevin-creator/autoresearch-mlx](https://github.com/trevin-creator/autoresearch-mlx) (MacOS)
-- [jsegov/autoresearch-win-rtx](https://github.com/jsegov/autoresearch-win-rtx) (Windows)
-- [andyluo7/autoresearch](https://github.com/andyluo7/autoresearch) (AMD)
+```bash
+uv run materials-train projects/my_project
+```
+
+By default this runs a lightweight MLP to give you a number quickly. To use TabM (the main model), edit `projects/my_project/specs/model_config.json` and set `"trainer": "tabm"`, then run the same command.
+
+Results appear in `projects/my_project/runs/<run_id>/`:
+- `summary.md` — plain-language summary (MAE, split info, best epoch)
+- `metrics.json` — all metrics as a machine-readable file
+- `validation_predictions.csv` — row-by-row predictions
+- `model.pt` — the saved model checkpoint
+
+The experiment is also logged to `projects/my_project/agent/experiment_log.tsv` — a tab-separated file you can open in Excel.
+
+### Step 4 — Let the agent tune overnight
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+uv run research-agent projects/my_project --max-hours 8
+```
+
+The agent will:
+1. Read your project state, best result, and full experiment history.
+2. Ask Claude to propose one experiment (a specific hyperparameter change) and explain why.
+3. Apply the change to `model_config.json`.
+4. Run training.
+5. Check if the result improved.
+6. Log the result and repeat.
+
+It runs for 8 hours (or the number you set) and respects your project's boundaries: it will **never** change the target column, split, or primary metric without asking you first.
+
+To watch it live:
+```bash
+tail -f projects/my_project/agent/experiment_plan.md
+```
+
+### Step 5 — Read the results
+
+```bash
+cat projects/my_project/agent/experiment_log.tsv
+cat projects/my_project/runs/<best_run_id>/summary.md
+```
+
+Or open `experiment_log.tsv` in Excel/Sheets. Each row is one training run with the metric value, model settings, and notes.
+
+---
+
+## Data format
+
+Your data must be a table where:
+- **One row = one material, sample, measurement, or calculation**
+- **One column = the property you want to predict** (your target)
+
+Accepted formats: `.csv`, `.tsv`, `.parquet`
+
+### Column types the tool understands
+
+| Role | What it means | Examples |
+|------|---------------|---------|
+| `target` | The property to predict | `band_gap`, `formation_energy`, `stable` |
+| `feature` | Numeric inputs the model uses | `density`, `electronegativity`, `lattice_a` |
+| `processing_feature` | Synthesis or measurement conditions | `temperature`, `pressure`, `annealing_time` |
+| `categorical_feature` | Non-numeric labels | `space_group`, `crystal_system`, `synthesis_route` |
+| `composition` | Chemical formula column | `formula`, `composition` |
+| `id` | Unique identifier (not a feature) | `material_id`, `sample_name`, `mp_id` |
+| `group` | Chemistry family (for group split) | `chemical_system`, `batch_id`, `study_id` |
+| `metadata` | Notes, DOI, source — never a feature | `reference`, `notes`, `doi` |
+
+The tool auto-detects column roles from names and data types. You confirm or correct them during setup.
+
+### What if my data has missing values?
+
+The tool handles missing values automatically:
+- Missing numeric values: filled with the column median.
+- Missing categorical values: treated as a separate "missing" category.
+- Rows where the **target is missing**: dropped (with a warning).
+
+### What if my dataset is small (< 500 rows)?
+
+This is common in materials science. The tool will:
+- Warn you if any split (train/val/test) has fewer than 10 rows.
+- Use random split by default (group split needs at least 10 groups).
+- Work anyway, but results will have high uncertainty — the agent will note this in its reasoning.
+
+---
+
+## Project types
+
+The setup command detects which kind of materials project you have:
+
+| Type | Description | Example target |
+|------|-------------|---------------|
+| Composition-property | Predict from formula-level descriptors | band gap from chemical formula |
+| Structure-property | Use CIF/POSCAR/XYZ structure files | bulk modulus from crystal structure |
+| Process-property | Synthesis/processing conditions → outcome | yield strength from alloy composition + heat treatment |
+| Phase classification | Stable/unstable, phase label | thermodynamic stability |
+| Candidate screening | Rank materials for experiments | desirability score |
+
+---
+
+## The DataScribe benchmark (TabM on materials science)
+
+This project is establishing **TabM as a new baseline for materials science tabular datasets** using the DataScribe benchmark from Vahid Attari et al. ([paper](https://doi.org/10.1039/D5DD00166H), [GitHub](https://github.com/vahid2364/DataScribe_DeepTabularLearning), [Zenodo](https://doi.org/10.5281/zenodo.16396374)).
+
+**TabM** is the current state-of-the-art tabular deep learning model (Yandex Research, 2024). It has never been applied to these materials science datasets. This project changes that.
+
+The DataScribe datasets are all **High Entropy Alloy (HEA) / Multi-Principal Element Alloy (MPEA)** datasets:
+
+| Dataset | Alloy system | Target | Task |
+|---------|-------------|--------|------|
+| `atlas_hea_liquidus` | AlCuCrNbNiFeMo | Liquidus temperature (K) | Regression |
+| `atlas_rhea_creep` | NbCrVWZr refractory | Creep merit index | Regression |
+| `birdshot_hea_hardness` | AlCoCrCuFeMnNiV | Vickers hardness (HV) | Regression |
+| `birdshot_hea_v5_hardness` | AlCoCrCuFeMnNiV (expanded) | Vickers hardness (HV) | Regression |
+| `borgHEA_hardness` | MPEA literature compilation | Vickers hardness (HV) | Regression |
+
+### Quick DataScribe setup
+
+**Option A — Download datasets automatically:**
+```bash
+uv run setup-datascribe --download --output-dir projects/datascribe
+uv run setup-datascribe --manifest projects/datascribe/datascribe_manifest.csv \
+    --output-dir projects/datascribe/projects --train-baseline
+```
+
+**Option B — Use your own data with the manifest template:**
+```bash
+# Edit examples/datascribe_manifest_template.csv with your file paths
+uv run setup-datascribe --manifest examples/datascribe_manifest_template.csv \
+    --output-dir projects/datascribe
+```
+
+**Option C — Set up one dataset manually:**
+```bash
+uv run materials-project init projects/datascribe/band_gap \
+  --data path/to/band_gap.csv \
+  --target band_gap \
+  --task regression \
+  --metric mae \
+  --id-column material_id \
+  --group-column chemical_system \
+  --name "DataScribe Band Gap" \
+  --goal "Benchmark TabM for band-gap prediction on the DataScribe dataset." \
+  --yes
+
+uv run materials-project validate projects/datascribe/band_gap
+uv run materials-train projects/datascribe/band_gap --run-id mlp-sanity
+# Edit specs/model_config.json → set "trainer": "tabm"
+uv run materials-train projects/datascribe/band_gap --run-id tabm-baseline
+```
+
+### TabM config for benchmarking
+
+Open `projects/<dataset>/specs/model_config.json` and set:
+
+```json
+{
+  "trainer": "tabm",
+  "tabm": {
+    "arch_type": "tabm",
+    "k": 32,
+    "n_blocks": 3,
+    "d_block": 256,
+    "dropout": 0.1
+  },
+  "training": {
+    "epochs": 300,
+    "patience": 40,
+    "batch_size": 256,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "seed": 42
+  }
+}
+```
+
+---
+
+## The agent — what it can and cannot change
+
+### What the agent changes (without asking):
+- `specs/model_config.json`: learning rate, batch size, model width (d_block), depth (n_blocks), dropout, the k parameter in TabM, number of epochs
+
+### What the agent must ask you before changing:
+- The target column
+- The evaluation metric
+- The train/validation/test split
+- Column roles (what counts as an input feature)
+- Anything in `data/raw/` (your original data is never touched)
+
+This contract is stored in `agent/edit_scope.json` inside your project folder.
+
+### Why this boundary matters
+
+The agent is optimizing hyperparameters, not doing science. The scientific decisions (what to predict, how to measure it, what counts as an input) are yours. The tool makes this boundary explicit and enforces it.
+
+---
+
+## Project folder structure
+
+Every project follows this layout:
+
+```
+my_project/
+  README.md                   ← quick-start for this specific project
+  data/
+    raw/
+      my_data.csv             ← original data, never modified
+    processed/                ← for future preprocessed versions
+  specs/
+    project.json              ← scientific contract (target, metric, split)
+    data_dictionary.csv       ← column roles, units, descriptions
+    model_config.json         ← model + training settings (agent-tunable)
+  agent/
+    edit_scope.json           ← what the agent can change without asking
+    research_brief.md         ← plain-language project summary for the agent
+    decision_log.md           ← record of scientific decisions made
+    experiment_plan.md        ← agent's reasoning log (updated each iteration)
+    experiment_log.tsv        ← all run results (open in Excel)
+  runs/
+    <run_id>/
+      summary.md              ← plain-language result
+      metrics.json            ← all metrics
+      model.pt                ← saved model checkpoint
+      validation_predictions.csv
+      test_predictions.csv
+  reports/                    ← for your write-ups and figures
+```
+
+---
+
+## Commands
+
+| Command | What it does |
+|---------|-------------|
+| `uv run materials-project init <folder> --data <file> --target <column>` | Create a project folder and answer setup questions |
+| `uv run materials-project validate <folder>` | Check the folder is ready to train |
+| `uv run materials-project summary <folder>` | Print a project overview |
+| `uv run materials-train <folder>` | Train the baseline |
+| `uv run materials-train <folder> --run-id my-run` | Train with a specific run name |
+| `uv run materials-train <folder> --cpu` | Force CPU training |
+| `uv run research-agent <folder>` | Start the overnight agent |
+| `uv run research-agent <folder> --max-hours 8` | Agent runs for 8 hours |
+| `uv run research-agent <folder> --dry-run` | See what the agent would propose without training |
+| `uv run setup-datascribe --download` | Download DataScribe datasets from GitHub |
+| `uv run setup-datascribe --manifest manifest.csv` | Set up projects from a manifest |
+
+---
+
+## Evaluation
+
+**Regression** (predicting a number like band gap or formation energy):
+- Primary metric: **MAE** — mean absolute error in the target units. Easier to interpret than RMSE.
+- Secondary: RMSE, R²
+
+**Classification** (predicting a label like stable/unstable):
+- Primary metric: **balanced accuracy** — correct even when classes are imbalanced.
+- Secondary: accuracy, ROC-AUC
+
+**Split options:**
+- `random` — rows are randomly shuffled into train/val/test. Easy first test.
+- `group` — groups of materials (e.g. by chemical system) are kept together. Tests whether the model generalises to new chemistry. Harder and more realistic.
+
+---
+
+## Contributing
+
+This project is open source (MIT license). We welcome:
+- New DataScribe project examples
+- Additional tabular model trainers (XGBoost, LightGBM, CatBoost, etc.)
+- Composition and structure featurizers (pymatgen, DScribe integration)
+- Improvements to the question-asking flow for domain scientists
+- Results and comparisons across materials datasets
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a new dataset example or trainer.
+
+---
+
+## Current status
+
+**Implemented and tested:**
+- Project folder format (v0.2)
+- Guided interactive project setup with domain-scientist-friendly questions
+- Project validation
+- Data dictionary generation (column roles, types, units)
+- Project family and modality detection
+- Tabular MLP baseline (PyTorch)
+- TabM baseline (Yandex Research's 2024 model)
+- Regression and classification metrics
+- Run folders with model checkpoints, metrics, predictions, and summaries
+- Agentic overnight optimizer (`research-agent`) using Claude
+
+**Planned next:**
+- Composition featurization (Magpie descriptors via pymatgen)
+- Structure featurization (SOAP, ACSF via DScribe or matminer)
+- Ranking/screening metrics (top-k recall, enrichment factor)
+- Additional tabular models (XGBoost, CatBoost, LightGBM)
+- Multi-dataset comparison dashboard
+
+---
+
+## Paper references
+
+- **TabM**: Gorishniy, Y. et al. *TabM: Advancing Tabular Deep Learning with Parameter-Efficient Ensembling.* arXiv 2410.24210 (2024)
+- **DataScribe**: Attari, V. et al. *DataScribe: A Benchmark for Deep Tabular Learning in Materials Science.* Digital Discovery (2025). DOI: [10.1039/D5DD00166H](https://doi.org/10.1039/D5DD00166H)
+- **DataScribe data**: [GitHub](https://github.com/vahid2364/DataScribe_DeepTabularLearning) | [Zenodo](https://doi.org/10.5281/zenodo.16396374)
+
+---
 
 ## License
 

@@ -1,0 +1,56 @@
+{
+  "schema_version": "materials-autoresearch/v0.2",
+  "project_name": "Tiny Materials Band Gap",
+  "created_at": "2026-04-21T03:55:02+00:00",
+  "scientific_goal": "Predict band gap from simple composition and measurement descriptors.",
+  "project_family": "process_property_prediction",
+  "data": {
+    "primary_table": "data/raw/measurements.csv",
+    "row_count_at_setup": 36,
+    "target_column": "band_gap_eV",
+    "id_column": "material_id",
+    "structure_column": null,
+    "group_column": "chemical_system",
+    "modalities": [
+      "tabular",
+      "composition",
+      "processing"
+    ],
+    "feature_policy": "Use roles listed in specs/model_config.json. Defaults include feature, processing_feature, categorical_feature, and composition.",
+    "structure_files_detected": []
+  },
+  "task": {
+    "type": "regression",
+    "prediction_target": "band_gap_eV"
+  },
+  "evaluation": {
+    "primary_metric": "mae",
+    "secondary_metrics": [
+      "rmse",
+      "r2"
+    ],
+    "split": {
+      "method": "group",
+      "train_fraction": 0.8,
+      "validation_fraction": 0.1,
+      "test_fraction": 0.1,
+      "group_column": "chemical_system",
+      "random_seed": 42
+    }
+  },
+  "research_rules": {
+    "do_not_modify_raw_data": true,
+    "record_every_experiment": true,
+    "prefer_simple_models_until_baseline_is_strong": true,
+    "ask_before_changing_target_or_evaluation_split": true,
+    "agent_tunable_files": [
+      "specs/model_config.json",
+      "agent/experiment_plan.md",
+      "agent/experiment_log.tsv"
+    ],
+    "researcher_decision_files": [
+      "specs/project.json",
+      "specs/data_dictionary.csv"
+    ]
+  }
+}

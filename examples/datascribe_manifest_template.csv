@@ -1,0 +1,26 @@
+dataset_name,data_path,target_column,task_type,primary_metric,id_column,group_column,split_method,notes
+# Instructions: replace "path/to/..." with your actual file paths, then run:
+#   uv run setup-datascribe --manifest this_file.csv --output-dir projects/datascribe
+#
+# To download all datasets automatically from GitHub first:
+#   uv run setup-datascribe --download --output-dir projects/datascribe
+#   (then the paths below will be filled in automatically in a generated manifest)
+#
+# DataScribe benchmark datasets — all are High Entropy Alloy (HEA) / MPEA datasets
+# Source: vahid2364/DataScribe_DeepTabularLearning (DOI: 10.1039/D5DD00166H)
+#
+# dataset_name    : short identifier — used as the project folder name
+# data_path       : path to CSV/TSV/Parquet file (relative to this file, or absolute)
+# target_column   : column to predict (must match exactly, including case and spaces)
+# task_type       : regression or classification
+# primary_metric  : mae (regression) or balanced_accuracy (classification)
+# id_column       : unique row ID column (leave blank if none)
+# group_column    : column to group by for train/val/test split (leave blank to use random split)
+# split_method    : random or group
+# notes           : free text description
+#
+atlas_hea_liquidus,path/to/data_LIQUID_variable_temprange9_processed.csv,PROP LT (K),regression,mae,,,random,AlCuCrNbNiFeMo HEA liquidus temperature (CALPHAD) — ATLAS campaign
+atlas_rhea_creep,path/to/NbCrVWZr_data_stoic_creep_equil_v3.csv,Creep Merit,regression,mae,,,random,NbCrVWZr refractory HEA creep merit index — ATLAS campaign
+birdshot_hea_hardness,path/to/HTMDEC_MasterTable_Iterations_v3_processed.csv,"Hardness, HV",regression,mae,,,random,AlCoCrCuFeMnNiV HEA Vickers hardness — BIRDSHOT v3
+birdshot_hea_v5_hardness,path/to/HTMDEC_MasterTable_Iterations_v5_processed.csv,"Hardness, HV",regression,mae,,,random,AlCoCrCuFeMnNiV HEA Vickers hardness — BIRDSHOT v5
+borgHEA_hardness,path/to/Borg_df_updated.csv,PROPERTY: HV,regression,mae,IDENTIFIER: Reference ID,,random,MPEA/HEA Vickers hardness — BorgHEA literature compilation

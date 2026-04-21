@@ -1,10 +1,11 @@
 [project]
 name = "autoresearch"
-version = "0.1.0"
-description = "Autonomous pretraining research swarm"
+version = "0.2.0"
+description = "AI-assisted machine learning for materials science — tabular baselines, agentic overnight optimization, and DataScribe benchmarking"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "anthropic>=0.40.0",
     "kernels>=0.11.7",
     "matplotlib>=3.10.8",
     "numpy>=2.2.6",
@@ -12,9 +13,16 @@ dependencies = [
     "pyarrow>=21.0.0",
     "requests>=2.32.0",
     "rustbpe>=0.1.0",
+    "tabm>=0.0.3",
     "tiktoken>=0.11.0",
     "torch==2.9.1",
 ]
+
+[project.scripts]
+materials-project = "materials_project:main"
+materials-train = "train_materials:main"
+research-agent = "research_agent:main"
+setup-datascribe = "setup_datascribe:main"
 
 [tool.uv.sources]
 torch = [
