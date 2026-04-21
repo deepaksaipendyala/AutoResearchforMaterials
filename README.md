@@ -1,16 +1,19 @@
 # Materials Autoresearch
 
-**AI-assisted machine learning for materials science.**
-Designed for PhD students, postdocs, and research groups who know the science and want results — not an ML engineering project.
+**Autonomous AI research for materials science.**
 
-The core workflow is:
+This is an **autoresearch system** — it does not just help you run ML experiments, it runs them for you, overnight, and explains every decision in plain scientific language. The goal is to let materials scientists (PhD students, postdocs, and research groups) level up their machine learning process without becoming ML engineers.
+
+The system takes your dataset, asks you a few plain-language questions about the science, sets up a reproducible project folder, trains a baseline model, and then hands off to an AI agent that proposes and tests improvements while you sleep. Everything is logged, nothing is hidden, and the agent always stays within the scientific boundaries you set.
+
+**Current research focus:** Applying Yandex Research's **TabM** (2024 state-of-the-art tabular deep learning model) to materials science for the first time, using the **DataScribe** HEA benchmark suite from Vahid Attari et al. (2025). TabM has never been benchmarked on materials datasets before — this project establishes those baselines and then uses autoresearch to optimize them overnight.
+
+The core workflow:
 
 1. Put your dataset (CSV, TSV, or Parquet) in a standard project folder.
-2. Answer a few plain-language questions about your data (target property, units, split strategy).
+2. Answer a few plain-language questions about your data — target property, units, split strategy.
 3. Train a first baseline model to see where you stand.
-4. Let an AI agent propose and test model improvements overnight — while you sleep.
-
-The main research target is **TabM** — Yandex Research's 2024 state-of-the-art tabular deep learning model — applied to materials science datasets for the first time, using the **DataScribe** benchmark suite from Vahid Attari et al. (2025).
+4. Let the AI agent propose and test model improvements overnight, logging every result.
 
 ---
 
@@ -343,16 +346,19 @@ my_project/
 
 ---
 
-## Contributing
+## Working with this repository
 
-This project is open source (MIT license). We welcome:
-- New DataScribe project examples
-- Additional tabular model trainers (XGBoost, LightGBM, CatBoost, etc.)
-- Composition and structure featurizers (pymatgen, DScribe integration)
-- Improvements to the question-asking flow for domain scientists
-- Results and comparisons across materials datasets
+This repository is **open source (MIT license)** so that multiple research teams can use and build on the same framework. It is not a public open-contribution project — development is coordinated within the research group.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a new dataset example or trainer.
+**If you are on the team:** clone the repo, work on a branch, and open a pull request for review. The main branch should always be in a working state (smoke test passes, `uv run materials-project validate examples/tiny_materials` succeeds).
+
+**If you are from another group using this:** you are free to fork and adapt it for your own datasets and alloy systems under the MIT license. The project folder format (specs/project.json, data_dictionary.csv, model_config.json) is the stable interface — your own datasets just need to follow that format.
+
+**Areas where the codebase is designed to be extended:**
+- New trainers: add a new branch in `train_materials.py` and a new `trainer` key in `model_config.json`
+- New datasets: follow the project folder format and add an entry to your manifest CSV
+- Composition featurizers: add a preprocessing step before `fit_tabular_transform()` in `train_materials.py`
+- Structure featurizers: same location, triggered by `structure_ref` column role
 
 ---
 
